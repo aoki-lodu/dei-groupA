@@ -28,16 +28,6 @@ RISK_MAP_DISPLAY = {
     "6": "⚖️ フェア"
 }
 
-# アイコンごとのテーマカラー定義（カード表示用）
-CATEGORY_COLORS = {
-    "💚": {"bg": "#e8f5e9", "border": "#4caf50"}, # Green
-    "📖": {"bg": "#e3f2fd", "border": "#2196f3"}, # Blue
-    "🌏": {"bg": "#e0f7fa", "border": "#00bcd4"}, # Cyan
-    "🌈": {"bg": "#f3e5f5", "border": "#9c27b0"}, # Purple
-    "⚖️": {"bg": "#fff3e0", "border": "#ff9800"}, # Orange
-    "multi": {"bg": "#f5f5f5", "border": "#9e9e9e"} # Grey
-}
-
 # 並び替え順序の定義（シングルアイコン用）
 SINGLE_ICON_ORDER = ['💚', '📖', '🌏', '🌈', '⚖️']
 
@@ -246,7 +236,7 @@ active_policies = selected_policies
 total_power = 0
 active_shields = set()
 active_recruits = set()
-active_promotes = set() # 追加：昇進対象の管理
+active_promotes = set()
 
 for pol in active_policies:
     if "shield" in pol["type"]:
@@ -255,7 +245,6 @@ for pol in active_policies:
     if "recruit" in pol["type"]:
         for t in pol["target"]:
             active_recruits.add(t)
-    # 追加：昇進ロジック
     if "promote" in pol["type"]:
         for t in pol["target"]:
             active_promotes.add(t)
@@ -297,7 +286,7 @@ char_results.insert(0, president_data)
 # ==========================================
 st.title("🎲 DE&I 組織シミュレーター")
 
-# スコアボード (5カラムに変更して昇進を追加)
+# スコアボード
 c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
     st.metric("🏆 チーム仕事力", f"{total_power} pt")
@@ -308,7 +297,6 @@ with c3:
     recruit_text = " ".join(sorted(list(active_recruits))) if active_recruits else "ー"
     st.metric("🔵 採用強化中", recruit_text)
 with c4:
-    # 昇進の表示を追加
     promote_text = " ".join(sorted(list(active_promotes))) if active_promotes else "ー"
     st.metric("🟢 昇進対象", promote_text)
 with c5:
@@ -331,15 +319,15 @@ cols = st.columns(3)
 
 for i, res in enumerate(char_results):
     with cols[i % 3]:
-        # 配色設定
+        # 配色設定 (SAFE/RISK のみで色分け)
         if res["is_safe"]:
-            border_color = "#00c853"
+            border_color = "#00c853" # Green
             bg_color = "#e8f5e9"
             header_text = "🛡️ SAFE (離職防止)" 
             footer_text = "✅ 離職防止 成功中"
             footer_color = "#00c853"
         else:
-            border_color = "#ff1744"
+            border_color = "#ff1744" # Red
             bg_color = "#ffebee"
             header_text = "⚠️ RISK (危険)"
             risk_icons = " ".join(res['risks'])
@@ -358,27 +346,20 @@ for i, res in enumerate(char_results):
 
         icons_str = "".join(res['data']['icons'])
         
-        # テーマカラーの決定
-        theme = CATEGORY_COLORS["multi"]
-        if len(res['data']['icons']) == 1:
-            icon_key = res['data']['icons'][0]
-            if icon_key in CATEGORY_COLORS:
-                theme = CATEGORY_COLORS[icon_key]
-        
         html_card = (
-            f'<div style="border: 4px solid {border_color}; border-radius: 12px; padding: 15px; background-color: {theme["bg"]}; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: 320px; display: flex; flex-direction: column; justify-content: space-between;">'
+            f'<div style="border: 4px solid {border_color}; border-radius: 12px; padding: 15px; background-color: {bg_color}; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: 320px; display: flex; flex-direction: column; justify-content: space-between;">'
             f'<div>'
             f'<div style="font-weight:bold; color:{border_color}; font-size:1.1em; margin-bottom:5px;">{header_text}</div>'
             f'<h3 style="margin:0 0 5px 0;">{res["data"]["name"]}</h3>'
             f'<div style="color:#555; font-size:0.9em; margin-bottom:10px;">属性: {icons_str}</div>'
             f'<div style="font-size:0.8em; margin-bottom:2px;">仕事力: {res["power"]}</div>'
             f'<div style="background-color: rgba(0,0,0,0.1); height: 12px; border-radius: 6px; width: 100%; margin-bottom: 10px;">'
-            f'<div style="background-color: {theme["border"]}; width: {bar_width}%; height: 100%; border-radius: 6px;"></div>'
+            f'<div style="background-color: {border_color}; width: {bar_width}%; height: 100%; border-radius: 6px;"></div>'
             f'</div>'
             f'<div style="margin-bottom: 10px; min-height: 25px;">{tags_html}</div>'
             f'</div>'
             f'<div>'
-            f'<hr style="border-top: 2px dashed {theme["border"]}; opacity: 0.3; margin: 10px 0;">'
+            f'<hr style="border-top: 2px dashed {border_color}; opacity: 0.3; margin: 10px 0;">'
             f'<div style="font-weight:bold; color:{footer_color}; text-align:center;">{footer_text}</div>'
             f'</div>'
             f'</div>'
@@ -395,12 +376,9 @@ else:
     cols_pol = st.columns(3)
     for i, pol in enumerate(active_policies):
         with cols_pol[i % 3]:
-            # テーマカラーの決定
-            pol_theme = CATEGORY_COLORS["multi"]
-            if len(pol["target"]) == 1:
-                p_key = pol["target"][0]
-                if p_key in CATEGORY_COLORS:
-                    pol_theme = CATEGORY_COLORS[p_key]
+            # 施策カードは統一デザイン（属性ごとの色分けなし）
+            pol_bg = "#e8eaf6"     # 薄い紫青系
+            pol_border = "#5c6bc0" # 濃い紫青系
 
             type_tags = []
             if pol["power"] > 0:
@@ -416,8 +394,8 @@ else:
 
             target_icons = "".join(pol["target"])
             html_pol_card = (
-                f'<div style="border: 2px solid {pol_theme["border"]}; border-radius: 10px; padding: 15px; background-color: {pol_theme["bg"]}; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
-                f'<div style="font-weight:bold; color:{pol_theme["border"]}; font-size:1.0em; margin-bottom:5px;">{pol["name"]}</div>'
+                f'<div style="border: 2px solid {pol_border}; border-radius: 10px; padding: 15px; background-color: {pol_bg}; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">'
+                f'<div style="font-weight:bold; color:{pol_border}; font-size:1.0em; margin-bottom:5px;">{pol["name"]}</div>'
                 f'<div style="font-size:0.9em; color:#555; margin-bottom:8px;">対象: {target_icons}</div>'
                 f'<div>{pol_tags_html}</div>'
                 f'</div>'
