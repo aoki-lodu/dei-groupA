@@ -13,8 +13,9 @@ st.markdown("""
     .card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ff4b4b; }
     .card-safe { border-left: 5px solid #00c853; }
     
-    /* ↓↓↓ 追加：一括削除ボタン（右側の×）を隠す魔法 ↓↓↓ */
-    button[title="Clear values"] {
+    /* ↓↓↓ 【修正】一括削除ボタン（×）を強制的に隠す魔法 ↓↓↓ */
+    /* 名前ではなく「場所」を指定して消すので、日本語環境でも確実に消えます */
+    div[data-baseweb="select"] button {
         display: none !important;
     }
     /* ↑↑↑ これで誤って全員消す事故がなくなります ↑↑↑ */
