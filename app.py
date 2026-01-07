@@ -300,7 +300,8 @@ with c4:
     promote_text = " ".join(sorted(list(active_promotes))) if active_promotes else "ー"
     st.metric("🟢 昇進対象", promote_text)
 with c5:
-    st.metric("👥 メンバー数", f"{len(active_chars)} 名")
+    # 修正: 社長を含めた表示数（char_resultsの要素数）を使用
+    st.metric("👥 メンバー数", f"{len(char_results)} 名")
 
 st.divider()
 
