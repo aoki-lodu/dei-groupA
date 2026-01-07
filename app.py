@@ -10,23 +10,16 @@ st.set_page_config(page_title="LODU Game", layout="wide", initial_sidebar_state=
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; font-weight: bold; }
-    .card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ff4b4b; }
-    .card-safe { border-left: 5px solid #00c853; }
     
-    /* ↓↓↓ 【修正】一括削除ボタン（×）を「場所」指定で消す最強の魔法 ↓↓↓ */
-    /* マルチセレクトの右端にあるアイコンエリア（×や▼がある場所）を丸ごと隠します */
+    /* ↓↓↓ 一括削除ボタン（×）を隠す魔法 ↓↓↓ */
     [data-testid="stMultiselect"] div[data-baseweb="select"] > div:nth-last-child(1) {
         display: none !important;
     }
-    /* ↑↑↑ これでどんな環境でも強制的に消えます ↑↑↑ */
-    
 </style>
 """, unsafe_allow_html=True)
 
 # ゲームデータ
 ICONS = {"くらし(💚)": "💚", "キャリア(📖)": "📖", "グローバル(🌏)": "🌏", "アイデンティティ(🌈)": "🌈", "フェア(⚖️)": "⚖️"}
-
-# 出目とリスクの対応表（画面表示用）
 RISK_MAP_DISPLAY = {
     "1": "🎉 セーフ",
     "2": "💚 くらし",
@@ -61,14 +54,12 @@ POLICIES_DB = [
 # ==========================================
 with st.sidebar:
     st.header("🎮 ゲーム操作盤")
-    
     st.info("👇 メンバーや施策を選んでください")
     
-    # シンプルな選択機能
     selected_char_names = st.multiselect(
         "👤 参加メンバー",
         [c["name"] for c in CHARACTERS_DB],
-        default=[c["name"] for c in CHARACTERS_DB[:3]] # 初期値
+        default=[c["name"] for c in CHARACTERS_DB[:3]]
     )
     
     st.divider()
@@ -79,7 +70,6 @@ with st.sidebar:
         default=[]
     )
 
-# データの抽出
 active_chars = [c for c in CHARACTERS_DB if c["name"] in selected_char_names]
 active_policies = [p for p in POLICIES_DB if p["name"] in selected_policy_names]
 
@@ -89,26 +79,22 @@ active_policies = [p for p in POLICIES_DB if p["name"] in selected_policy_names]
 total_power = 0
 active_shields = set()
 
-# 盾の判定
 for pol in active_policies:
     if "shield" in pol["type"]:
         for t in pol["target"]:
             active_shields.add(t)
 
-# メンバーごとの計算
 char_results = []
 for char in active_chars:
     current_power = char["base"]
     status_tags = []
     
-    # 施策効果（パワーアップ・昇進・採用）
     for pol in active_policies:
         if set(char["icons"]) & set(pol["target"]):
             current_power += pol["power"]
             if "promote" in pol["type"] and "🟢昇進" not in status_tags: status_tags.append("🟢昇進")
             if "recruit" in pol["type"] and "🔵採用" not in status_tags: status_tags.append("🔵採用")
             
-    # リスク判定（盾がない属性を抽出）
     risks = [icon for icon in char["icons"] if icon not in active_shields]
     is_safe = len(risks) == 0 
     
@@ -131,53 +117,85 @@ c1, c2, c3 = st.columns(3)
 with c1:
     st.metric("🏆 チーム仕事力", f"{total_power} pt")
 with c2:
-    if active_shields:
-        shield_text = " ".join(sorted(list(active_shields)))
-    else:
-        shield_text = "ー"
+    shield_text = " ".join(sorted(list(active_shields))) if active_shields else "ー"
     st.metric("🛡️ ガード中の属性", shield_text)
 with c3:
     st.metric("👥 メンバー数", f"{len(active_chars)} 名")
 
 st.divider()
 
-# サイコロ対応表（アナログプレイ用）
-with st.expander("🎲 サイコロの出目対応表を見る（クリックで開閉）"):
+with st.expander("🎲 サイコロの出目対応表を見る"):
     cols = st.columns(6)
     for i, (num, desc) in enumerate(RISK_MAP_DISPLAY.items()):
         with cols[i]:
             st.markdown(f"**{num}**: {desc}")
 
 st.subheader("📊 組織メンバーの状態")
-st.caption("リアルサイコロを振って、危険マーク（⚠️）がついている属性が出たら、そのメンバーは離職です。サイドバーの名前横の「×」で削除してください。")
+st.caption("リアルサイコロを振って、🟥 赤い枠 のメンバーの属性が出たら離職です。")
 
-# メンバーカード表示
+# --- 【変更点】HTMLを使って強力にデザインする ---
 cols = st.columns(3)
 if not char_results:
     st.info("👈 サイドバーからメンバーを追加してください")
 else:
     for i, res in enumerate(char_results):
         with cols[i % 3]:
-            # カード枠のデザイン
-            border_style = "card-safe" if res["is_safe"] else "card"
-            emoji_status = "🛡️鉄壁" if res["is_safe"] else "⚠️危険"
+            # 色の設定
+            if res["is_safe"]:
+                border_color = "#00c853" # 緑
+                bg_color = "#e8f5e9"     # 薄い緑
+                header_text = "🛡️ SAFE（安全）"
+                footer_text = "✅ ガード成功中"
+                footer_color = "#00c853"
+            else:
+                border_color = "#ff1744" # 赤
+                bg_color = "#ffebee"     # 薄い赤
+                header_text = "⚠️ RISK（危険）"
+                risk_icons = " ".join(res['risks'])
+                footer_text = f"😱 {risk_icons} が出たらアウト"
+                footer_color = "#ff1744"
+
+            # 仕事力バーの長さ計算
+            bar_width = min(res['power'] * 10, 100)
             
-            with st.container():
-                st.markdown(f"**{res['data']['name']}**")
-                st.caption(f"属性: {''.join(res['data']['icons'])}")
+            # タグのHTML生成
+            tags_html = ""
+            for tag in res["tags"]:
+                tags_html += f"<span style='background:#fff; border:1px solid #ccc; border-radius:4px; padding:2px 5px; font-size:0.8em; margin-right:5px;'>{tag}</span>"
+
+            # カードHTML（ここでガッツリ枠を作ります）
+            html_card = f"""
+            <div style="
+                border: 4px solid {border_color}; 
+                border-radius: 12px; 
+                padding: 15px; 
+                background-color: {bg_color};
+                margin-bottom: 20px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            ">
+                <div style="font-weight:bold; color:{border_color}; font-size:1.1em; margin-bottom:5px;">
+                    {header_text}
+                </div>
+                <h3 style="margin:0 0 5px 0;">{res['data']['name']}</h3>
+                <div style="color:#555; font-size:0.9em; margin-bottom:10px;">
+                    属性: {''.join(res['data']['icons'])}
+                </div>
                 
-                # 仕事力バー
-                st.progress(min(res["power"] / 10, 1.0), text=f"仕事力: {res['power']}")
+                <div style="font-size:0.8em; margin-bottom:2px;">仕事力: {res['power']}</div>
+                <div style="background-color: #ddd; height: 12px; border-radius: 6px; width: 100%; margin-bottom: 10px;">
+                    <div style="background-color: {border_color}; width: {bar_width}%; height: 100%; border-radius: 6px;"></div>
+                </div>
                 
-                # タグ（昇進など）
-                if res["tags"]:
-                    st.markdown(" ".join([f"`{t}`" for t in res["tags"]]))
+                <div style="margin-bottom: 10px;">
+                    {tags_html}
+                </div>
                 
-                st.divider()
+                <hr style="border-top: 2px dashed {border_color}; opacity: 0.3; margin: 10px 0;">
                 
-                # リスク表示
-                if res["is_safe"]:
-                    st.success(f"{emoji_status}: ガード成功中")
-                else:
-                    risk_str = " ".join(res['risks'])
-                    st.error(f"{emoji_status}: **{risk_str}** が出たらアウト")
+                <div style="font-weight:bold; color:{footer_color}; text-align:center;">
+                    {footer_text}
+                </div>
+            </div>
+            """
+            
+            st.markdown(html_card, unsafe_allow_html=True)
