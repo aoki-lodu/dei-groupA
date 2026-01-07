@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 
 # ==========================================
 # 0. 設定 & データ定義
@@ -28,7 +27,7 @@ RISK_MAP_DISPLAY = {
     "6": "⚖️ フェア"
 }
 
-# --- ✅ 人財データ（全93名・修正済み） ---
+# --- ✅ 人財データ（全93名） ---
 CHARACTERS_DB = [
     # --- 🌈 アイデンティティ ---
     {"name": "佐藤 陽菜", "icons": ["🌈"], "base": 1, "role": "Newbie"},
@@ -171,85 +170,57 @@ POLICIES_DB = [
 ]
 
 # ==========================================
-# 1. サイドバー (検索機能付き)
+# 1. サイドバー (スマート検索版)
 # ==========================================
 with st.sidebar:
     st.header("🎮 ゲーム操作盤")
     st.info("👇 メンバーや施策を選んでください")
 
-    # --- 🟢 メンバー選択エリア ---
+    # --- 🟢 メンバー選択 (検索付きプルダウン) ---
     st.markdown("### 👤 参加メンバー")
+    st.caption("※プルダウン内で文字を入力すると、名前・役職・属性で絞り込めます。")
     
-    # A. メンバー検索バー
-    search_char = st.text_input("🔍 メンバー検索", placeholder="名前、Role(Leader)、属性(🌈) で検索")
-    
-    # B. 検索ロジック (名前 or 役職 or アイコン にヒットする人を抽出)
-    all_char_names = [c["name"] for c in CHARACTERS_DB]
-    
-    if search_char:
-        filtered_char_names = []
-        for c in CHARACTERS_DB:
-            # 検索対象の文字列を作成（名前 + 役職 + アイコン）
-            search_target = f"{c['name']} {c['role']} {''.join(c['icons'])}"
-            if search_char.lower() in search_target.lower():
-                filtered_char_names.append(c["name"])
-    else:
-        filtered_char_names = all_char_names
+    # 検索しやすいラベルを作成する関数
+    def create_char_label(c):
+        icons = "".join(c['icons'])
+        return f"{c['name']} ｜ {c['role']} {icons}"
 
-    # C. セッション状態の初期化 (エラー防止のため)
-    if "selected_char_names" not in st.session_state:
-        st.session_state["selected_char_names"] = all_char_names[:3] # 初期選択3名
-
-    # D. 選択ボックス (検索結果 + すでに選んでいる人を統合して表示)
-    current_chars = st.session_state["selected_char_names"]
-    # セットを使って重複を除去しつつ結合
-    display_char_options = sorted(list(set(filtered_char_names + current_chars)))
+    # { "表示ラベル": データ本体 } の辞書を作成
+    char_map = {create_char_label(c): c for c in CHARACTERS_DB}
     
-    # E. マルチセレクト本体 (keyを使ってsession_stateと連動)
-    selected_char_names = st.multiselect(
-        "メンバーを選択",
-        options=display_char_options,
-        key="selected_char_names" # default引数は使わずkeyで管理
+    # デフォルト選択用のラベルリスト
+    default_char_labels = [create_char_label(c) for c in CHARACTERS_DB[:3]]
+
+    # マルチセレクト (表示はラベルで行う)
+    selected_char_labels = st.multiselect(
+        "メンバーを選択 (検索対応)",
+        options=char_map.keys(),
+        default=default_char_labels
     )
+    
+    # ラベルから元のデータを取り出す
+    active_chars = [char_map[label] for label in selected_char_labels]
 
     st.divider()
 
-    # --- 🃏 施策選択エリア ---
+    # --- 🃏 施策選択 (検索付きプルダウン) ---
     st.markdown("### 🃏 実行した施策")
+    st.caption("※「recruit」「shield」や属性アイコンで検索できます。")
+
+    def create_policy_label(p):
+        target = "".join(p['target'])
+        types = " ".join(p['type'])
+        return f"{p['name']} ｜ {target} ({types})"
+
+    policy_map = {create_policy_label(p): p for p in POLICIES_DB}
     
-    # A. 施策検索バー
-    search_policy = st.text_input("🔍 施策検索", placeholder="施策名、対象(Recruit)、属性(🌏) で検索")
-
-    # B. 検索ロジック
-    all_policy_names = [p["name"] for p in POLICIES_DB]
-    
-    if search_policy:
-        filtered_policy_names = []
-        for p in POLICIES_DB:
-            # 名前 + タイプ + 対象アイコン で検索
-            search_target = f"{p['name']} {' '.join(p['type'])} {''.join(p['target'])}"
-            if search_policy.lower() in search_target.lower():
-                filtered_policy_names.append(p["name"])
-    else:
-        filtered_policy_names = all_policy_names
-
-    # C. セッション状態の初期化
-    if "selected_policy_names" not in st.session_state:
-        st.session_state["selected_policy_names"] = [] # 初期は空
-
-    # D. 選択ボックス用リスト作成
-    current_policies = st.session_state["selected_policy_names"]
-    display_policy_options = sorted(list(set(filtered_policy_names + current_policies)))
-
-    # E. マルチセレクト本体
-    selected_policy_names = st.multiselect(
-        "施策を選択",
-        options=display_policy_options,
-        key="selected_policy_names"
+    selected_policy_labels = st.multiselect(
+        "施策を選択 (検索対応)",
+        options=policy_map.keys(),
+        default=[]
     )
-
-active_chars = [c for c in CHARACTERS_DB if c["name"] in selected_char_names]
-active_policies = [p for p in POLICIES_DB if p["name"] in selected_policy_names]
+    
+    active_policies = [policy_map[label] for label in selected_policy_labels]
 
 # ==========================================
 # 2. 計算ロジック
