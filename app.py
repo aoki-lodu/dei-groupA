@@ -55,17 +55,20 @@ with st.sidebar:
     st.header("🎮 ゲーム操作盤")
     st.info("👇 メンバーや施策を選んでください")
     
+    # ここでエラーが出ていたので、書き方を修正しました
+    character_names = [c["name"] for c in CHARACTERS_DB]
     selected_char_names = st.multiselect(
         "👤 参加メンバー",
-        [c["name"] for c in CHARACTERS_DB],
-        default=[c["name"] for c in CHARACTERS_DB[:3]]
+        options=character_names,
+        default=character_names[:3]
     )
     
     st.divider()
     
+    policy_names = [p["name"] for p in POLICIES_DB]
     selected_policy_names = st.multiselect(
         "🃏 実行した施策",
-        [p["name"] for p in POLICIES_DB],
+        options=policy_names,
         default=[]
     )
 
@@ -154,15 +157,16 @@ else:
             if res["is_safe"]:
                 border_color = "#00c853"
                 bg_color = "#e8f5e9"
-                header_text = "🛡️ SAFE (離職防止)" # 文言変更
-                footer_text = "✅ 離職防止 成功中" # 文言変更
+                header_text = "🛡️ SAFE (離職防止)" 
+                footer_text = "✅ 離職防止 成功中"
                 footer_color = "#00c853"
             else:
                 border_color = "#ff1744"
                 bg_color = "#ffebee"
                 header_text = "⚠️ RISK (危険)"
                 risk_icons = " ".join(res['risks'])
-                footer_text = f"{risk_icons} が出たらアウト" # 😱削除
+                # 😱を削除し、テキストをシンプルに
+                footer_text = f"{risk_icons} が出たらアウト" 
                 footer_color = "#ff1744"
 
             bar_width = min(res['power'] * 10, 100)
