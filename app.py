@@ -8,13 +8,12 @@ import time
 # ==========================================
 st.set_page_config(page_title="LODU Game", layout="wide", initial_sidebar_state="expanded")
 
-# カスタムCSS（見た目を整える）
+# カスタムCSS
 st.markdown("""
 <style>
     .big-font { font-size:20px !important; font-weight: bold; }
     .card { background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #ff4b4b; }
     .card-safe { border-left: 5px solid #00c853; }
-    .metric-container { background-color: #ffffff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -51,7 +50,6 @@ POLICIES_DB = [
 # ==========================================
 with st.sidebar:
     st.header("🎮 ゲーム操作盤")
-    st.info("手札のカードを選んでください")
     
     selected_char_names = st.multiselect(
         "👤 参加メンバー",
@@ -69,7 +67,7 @@ with st.sidebar:
     
     st.divider()
     if st.button("🔄 リセット", type="primary"):
-        st.rerun() # ここを修正しました
+        st.rerun()
 
 # データの抽出
 active_chars = [c for c in CHARACTERS_DB if c["name"] in selected_char_names]
@@ -99,7 +97,7 @@ for char in active_chars:
             
     # リスク判定
     risks = [icon for icon in char["icons"] if icon not in active_shields]
-    is_safe = len(risks) == 0 # リスクがなければ安全
+    is_safe = len(risks) == 0 
     
     total_power += current_power
     char_results.append({
@@ -117,18 +115,26 @@ for char in active_chars:
 # タイトルエリア
 st.title("🎲 DE&I 組織シミュレーター")
 
-# スコアボード（目立つように配置）
+# スコアボード
 c1, c2, c3 = st.columns(3)
 with c1:
     st.metric("🏆 チーム仕事力", f"{total_power} pt")
 with c2:
-    st.metric("🛡️ ガード中の属性", f"{len(active_shields)} / 5 種")
+    # --- ここを変更しました！ ---
+    # ガード中のアイコンを並べて表示します
+    if active_shields:
+        shield_text = " ".join(sorted(list(active_shields))) # アイコンを並べる
+    else:
+        shield_text = "ー" # なしの場合
+    
+    st.metric("🛡️ ガード中の属性", shield_text)
+    # -----------------------
 with c3:
     st.metric("👥 メンバー数", f"{len(active_chars)} 名")
 
 st.divider()
 
-# ダイスロールセクション（ゲームのメイン）
+# ダイスロールセクション
 st.subheader("🎲 運命のダイスロール")
 col_dice_btn, col_dice_result = st.columns([1, 2])
 
@@ -138,7 +144,7 @@ with col_dice_btn:
 with col_dice_result:
     if roll_btn:
         with st.spinner("コロコロ..."):
-            time.sleep(1) # ドキドキ感を演出
+            time.sleep(1)
             dice = random.randint(1, 6)
         
         st.markdown(f"### 出目: **【 {dice} 】**")
@@ -165,15 +171,13 @@ st.divider()
 # メンバーカード表示エリア
 st.subheader("📊 組織メンバーの状態")
 
-# グリッドレイアウトでカードを表示
-cols = st.columns(3) # 3列で表示
+cols = st.columns(3)
 for i, res in enumerate(char_results):
-    with cols[i % 3]: # 列を順番に使う
+    with cols[i % 3]:
         # カードのデザイン
-        border_color = "green" if res["is_safe"] else "red"
         emoji_status = "🛡️鉄壁" if res["is_safe"] else "⚠️危険"
         
-        with st.container(): # border=Trueを削除（互換性のため）
+        with st.container():
             st.markdown(f"**{res['data']['name']}**")
             st.caption(f"属性: {''.join(res['data']['icons'])}")
             
