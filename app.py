@@ -170,7 +170,7 @@ POLICIES_DB = [
     {"name": "内部公募マーケット", "target": ["📖", "🌈"], "power": 1, "type": ["promote", "shield", "power"]},
     {"name": "構造化面接", "target": ["📖", "⚖️"], "power": 0, "type": ["recruit", "promote"]},
     {"name": "学習支援（費用・就業内学習）", "target": ["📖", "⚖️"], "power": 3, "type": ["promote", "power"]},
-    {"name": "心理的安全性ルーチン", "target": ["🌈", "⚖️"], "power": 3, "type": ["promote", "shield", "power"]}
+    {"name": "心理的安全性ルーチン", "target": ["🌈", "⚖️"], "power": 3, "type": ["promote", "shield", "power"]},
     {"name": "メンタリング＆スポンサー", "target": ["🌈", "⚖️"], "power": 0, "type": ["promote", "shield"]},
     {"name": "面接官トレーニング", "target": ["🌈", "⚖️"], "power": 0, "type": ["recruit", "promote"]},
     {"name": "公正なアサイン管理", "target": ["🌈", "⚖️"], "power": 1, "type": ["promote", "power"]},
