@@ -367,31 +367,36 @@ else:
                 )
                 
                 recruit_indices = selection_event_recruits.selection.rows
-                candidates = [remaining_chars[i] for i in recruit_indices]
                 
-                # ★バリデーション処理
-                valid_recruits = []
-                invalid_recruits = []
+                # ★バリデーション & 強制選択解除ロジック
+                valid_indices = []
+                invalid_chars = []
                 
-                for char in candidates:
+                for idx in recruit_indices:
+                    char = remaining_chars[idx]
                     char_icons_set = set(char["icons"])
+                    
                     # 採用条件（施策）の部分集合になっているかチェック
                     if char_icons_set.issubset(recruit_enabled_icons):
-                        valid_recruits.append(char)
+                        valid_indices.append(idx)
                     else:
-                        invalid_recruits.append(char)
+                        invalid_chars.append(char)
                 
-                # エラーがある場合、ポップアップ(Toast)で警告
-                if invalid_recruits:
+                # エラーがある場合、ポップアップ(Toast)で警告し、状態を強制リセットしてリロード
+                if invalid_chars:
                     # 名前を列挙して表示
-                    invalid_names = "、".join([c["name"] for c in invalid_recruits])
+                    # invalid_names = "、".join([c["name"] for c in invalid_chars])
                     msg = "採用の基盤が整っていないのでこの人を採用することができません"
                     st.toast(f"🚫 {msg}", icon="⚠️")
-                    # 画面上にもエラー表示を残す
-                    st.error(f"🚫 {msg} ({invalid_names})")
+                    
+                    # ★重要：不正な選択を除外した状態をセッションステートに書き込む
+                    st.session_state["df_recruits_selection"]["selection"]["rows"] = valid_indices
+                    
+                    # リロードしてチェックを外す
+                    st.rerun()
                 
                 # 有効なメンバーのみ採用リストに入れる
-                selected_recruits = valid_recruits
+                selected_recruits = [remaining_chars[i] for i in valid_indices]
                 
                 if len(selected_recruits) > 0:
                     st.caption(f"現在 {len(selected_recruits)} 名を追加選択中")
