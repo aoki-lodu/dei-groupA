@@ -246,7 +246,7 @@ sorted_chars, sorted_policies = get_sorted_data()
 # ==========================================
 # 1. 状態管理 & 初期セットアップ
 # ==========================================
-st.title("DE&I 組織シミュレーター")
+st.title("DE&I経営ゲーム 自動計算ツール")
 
 # セッション状態の初期化
 if "is_startup_completed" not in st.session_state:
