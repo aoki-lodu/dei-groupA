@@ -454,7 +454,7 @@ if st.session_state.is_startup_completed:
             <div class="score-value">{shield_disp}</div>
         </div>
         <div class="score-item">
-            <div class="score-label">🔵 採用強化</div>
+            <div class="score-label">🔵 採用対象</div>
             <div class="score-value">{recruit_disp}</div>
         </div>
         <div class="score-item">
