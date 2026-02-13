@@ -308,7 +308,7 @@ if not st.session_state.is_startup_completed:
 else:
     # メイン設定エリア
     with st.expander("⚙️ 施策実行・追加採用 (ここをタップ)", expanded=True):
-        tab1, tab2 = st.tabs(["🃏 ① 施策実行", "👥 ② メンバー管理（採用・離脱）"])
+        tab1, tab2 = st.tabs(["🃏 ① 施策実行", "👥 ② メンバー管理"])
 
         # --- ① 施策選択 ---
         with tab1:
@@ -343,76 +343,80 @@ else:
             else:
                 st.warning("⚠️ 「採用」施策を選ぶと、追加メンバーが選べるようになります")
 
-        # --- ② メンバー管理（安定版：data_editor使用） ---
+        # --- ② メンバー管理（フィルタリング版） ---
         with tab2:
-            st.caption("👇 **チェックを入れると参加、外すと離脱します**")
+            st.caption("👇 **「現在参加中」または「採用条件を満たす」メンバーのみ表示されています**")
+            st.caption("※ チェックを外すと離脱、チェックを入れると参加します")
             
-            # 全メンバーのデータを準備
-            df_chars_manage = pd.DataFrame(sorted_chars)
+            # ### 追加・変更 ###
+            # フィルタリングロジック:
+            # 1. 既に参加している人 (active_member_indicesに含まれる)
+            # 2. まだ参加していないが、採用条件を満たしている人 (recruit_enabled_iconsに含まれる属性を持つ)
+            # このどちらかの条件を満たす人のみをリストアップする
             
-            # 現在参加中のメンバーには「参加」列に True (チェック) をつける
-            # active_member_indices に含まれるインデックスは True, それ以外は False
-            current_status = []
-            for i in range(len(df_chars_manage)):
-                current_status.append(i in st.session_state.active_member_indices)
+            display_indices = []
             
-            df_chars_manage.insert(0, "参加", current_status) # 1列目にチェックボックス列を追加
-            df_chars_manage["名前と属性"] = df_chars_manage.apply(lambda x: f"{''.join(x['icons'])} {x['name']}", axis=1)
-            
-            # データエディタ表示 (チェックボックスでON/OFFできる表)
-            edited_df = st.data_editor(
-                df_chars_manage[["参加", "名前と属性"]],
-                column_config={
-                    "参加": st.column_config.CheckboxColumn(
-                        "参加状況",
-                        help="チェックを入れるとメンバーに参加します",
-                        default=False,
-                    ),
-                    "名前と属性": st.column_config.TextColumn(
-                        "メンバー",
-                        disabled=True # 名前は編集不可にする
-                    )
-                },
-                disabled=["名前と属性"], # 名前列は編集禁止
-                hide_index=True,
-                use_container_width=True,
-                height=400,
-                key="editor_member_manage"
-            )
-            
-            # --- 変更の検知とバリデーション ---
-            # 編集後のデータから「参加」がTrueになっている人のインデックスを取得
-            # (元のデータフレームのインデックスと対応しています)
-            new_active_indices = [i for i, x in enumerate(edited_df["参加"]) if x]
-            
-            # 差分チェック
-            old_set = set(st.session_state.active_member_indices)
-            new_set = set(new_active_indices)
-            
-            added_indices = list(new_set - old_set) # 新しく増えた人
-            
-            # バリデーション: 新規追加が許可されているか？
-            valid_change = True
-            for idx in added_indices:
-                char = sorted_chars[idx]
-                char_icons_set = set(char["icons"])
+            for i, char in enumerate(sorted_chars):
+                is_active = i in st.session_state.active_member_indices
+                is_recruitable = set(char["icons"]).issubset(recruit_enabled_icons)
                 
-                # 採用条件（施策）を満たしていない場合
-                if not char_icons_set.issubset(recruit_enabled_icons):
-                    valid_change = False
-                    msg = f"「{char['name']}」を採用するには、対応する属性の採用施策が必要です"
-                    st.toast(f"🚫 {msg}", icon="⚠️")
+                # 「既に参加中」または「採用可能」なら表示リストに入れる
+                if is_active or is_recruitable:
+                    display_indices.append(i)
             
-            # 変更が有効であれば反映、無効ならリロードして元に戻す
-            if set(new_active_indices) != set(st.session_state.active_member_indices):
-                if valid_change:
-                    st.session_state.active_member_indices = new_active_indices
-                    st.rerun() # 即時反映
-                else:
-                    # 無効な操作（条件を満たさない人をチェックした）場合
-                    # session_stateを更新せずにrerunすることで、チェックボックスを元の状態(False)に戻す
-                    time.sleep(1) # トーストを読ませるため少し待つ（任意）
+            # 表示用データフレーム作成
+            # 元の sorted_chars から、display_indices に該当する行だけを抜き出して作る
+            display_data = []
+            for idx in display_indices:
+                char = sorted_chars[idx]
+                is_active = idx in st.session_state.active_member_indices
+                display_data.append({
+                    "original_index": idx, # 元のインデックスを保持しておく（重要）
+                    "参加": is_active,
+                    "名前と属性": f"{''.join(char['icons'])} {char['name']}"
+                })
+                
+            df_display = pd.DataFrame(display_data)
+            
+            if not df_display.empty:
+                # データエディタ表示
+                edited_df = st.data_editor(
+                    df_display[["参加", "名前と属性"]],
+                    column_config={
+                        "参加": st.column_config.CheckboxColumn(
+                            "参加状況",
+                            help="チェックを入れるとメンバーに参加します",
+                            default=False,
+                        ),
+                        "名前と属性": st.column_config.TextColumn(
+                            "メンバー",
+                            disabled=True
+                        )
+                    },
+                    disabled=["名前と属性"],
+                    hide_index=True,
+                    use_container_width=True,
+                    height=400,
+                    key="editor_member_manage"
+                )
+                
+                # --- 変更の反映 ---
+                # 画面上で「参加」になっている行の original_index を集める
+                # edited_df の行順序は display_indices と同じなので、行番号を使って対応付ける
+                
+                # 現在画面上でチェックされている行のindex(0, 1, 2...)を取得
+                checked_rows = [i for i, x in enumerate(edited_df["参加"]) if x]
+                
+                # それを元の sorted_chars のインデックスに変換
+                new_active_indices_from_display = [df_display.iloc[i]["original_index"] for i in checked_rows]
+                
+                # セッションステートと比較して変更があれば更新
+                # (セットに変換して比較することで順序の違いを無視)
+                if set(new_active_indices_from_display) != set(st.session_state.active_member_indices):
+                    st.session_state.active_member_indices = new_active_indices_from_display
                     st.rerun()
+            else:
+                st.info("表示できるメンバーがいません（採用施策を選んでください）")
 
             st.caption(f"現在 {len(st.session_state.active_member_indices)} 名が参加中")
 
