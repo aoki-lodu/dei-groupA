@@ -203,13 +203,13 @@ POLICIES_DB = [
     {"name": "LGBTQ+アライコミュニティ", "target": ["🌈"], "cost": 2, "power": 0, "type": ["recruit", "promote", "shield"]},
     {"name": "指導員制度", "target": ["🌈"], "cost": 2, "power": 2, "type": ["promote", "power"]},
     {"name": "清和会", "target": ["⚖️"], "cost": 1, "power": 0, "type": ["shield"]},
+    {"name": "ウェルビーイング表彰", "target": ["💚","🌈"], "cost": 2, "power": 2, "type": ["recruit", "shield", "power"]},      
     {"name": "メンター制度", "target": ["💚", "📖"], "cost": 2, "power": 1, "type": ["promote", "shield","power"]},
     {"name": "リターンシップ(復職支援)", "target": ["💚", "📖"], "cost": 2, "power": 0, "type": ["recruit", "promote"]},
     {"name": "復帰ブリッジ（育休/介護）", "target": ["💚", "📖"], "cost": 1, "power": 1, "type": ["promote", "shield", "power"]},
     {"name": "テレワーク・ワーケーション制度", "target": [ "💚","🌏"], "cost": 1, "power": 1, "type": ["recruit", "shield", "power"]},
     {"name": "多言語対応", "target": ["💚","🌏"], "cost": 2, "power": 2, "type": ["recruit", "power"]},
     {"name": "サテライト/在宅手当", "target": ["💚","🌏"], "cost": 1, "power": 1, "type": ["recruit", "shield", "power"]},
-    {"name": "ウェルビーイング表彰", "target": ["💚","🌈"], "cost": 2, "power": 2, "type": ["recruit", "shield", "power"]},    
     {"name": "障がい者インクルージョンコミュニティ", "target": ["💚", "🌈"], "cost": 2, "power": 0, "type": ["promote", "shield"]},
     {"name": "通勤交通費支給", "target": ["💚", "⚖️"], "cost": 1, "power": 0, "type": ["recruit"]},
     {"name": "1on1", "target": ["📖", "🌏"], "cost": 2, "power": 3, "type": ["shield", "power"]},
@@ -308,23 +308,6 @@ else:
     # 確定済みの初期メンバー
     init_members = st.session_state.initial_members
     
-    # ### 追加・変更エリア：リセットボタンの実装 ###
-    # メイン画面上部に「やり直しボタン」を配置
-    with st.container():
-        col_reset, col_dummy = st.columns([1, 2])
-        with col_reset:
-            if st.button("🔄 初期メンバーを選び直す", key="reset_btn", help="最初の2名の選択画面に戻ります"):
-                # セッションステートをリセットして再起動
-                st.session_state.is_startup_completed = False
-                st.session_state.initial_members = []
-                # データフレームの選択状態もクリア（キーが存在する場合のみ）
-                keys_to_clear = ["df_init_selection", "df_pols_selection", "df_recruits_selection"]
-                for k in keys_to_clear:
-                    if k in st.session_state:
-                        del st.session_state[k]
-                st.rerun()
-    # ########################################
-
     # メイン設定エリア
     with st.expander("⚙️ 施策実行・追加採用 (ここをタップ)", expanded=True):
         tab1, tab2 = st.tabs(["🃏 ① 施策実行", "👥 ② 追加採用"])
