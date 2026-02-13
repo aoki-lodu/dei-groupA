@@ -254,6 +254,10 @@ if "is_startup_completed" not in st.session_state:
 if "initial_members" not in st.session_state:
     st.session_state.initial_members = [] # 最初に選んだ2名
 
+# ### 追加・変更: 離脱者リスト ###
+if "retired_names" not in st.session_state:
+    st.session_state.retired_names = [] 
+
 if "selected_char_rows" not in st.session_state:
     st.session_state.selected_char_rows = []
 if "selected_policy_rows" not in st.session_state:
@@ -305,23 +309,6 @@ else:
     # 確定済みの初期メンバー
     init_members = st.session_state.initial_members
     
-    # ### 追加・変更エリア：リセットボタンの実装 ###
-    # メイン画面上部に「やり直しボタン」を配置
-    with st.container():
-        col_reset, col_dummy = st.columns([1, 2])
-        with col_reset:
-            if st.button("🔄 初期メンバーを選び直す", key="reset_btn", help="最初の2名の選択画面に戻ります"):
-                # セッションステートをリセットして再起動
-                st.session_state.is_startup_completed = False
-                st.session_state.initial_members = []
-                # データフレームの選択状態もクリア（キーが存在する場合のみ）
-                keys_to_clear = ["df_init_selection", "df_pols_selection", "df_recruits_selection"]
-                for k in keys_to_clear:
-                    if k in st.session_state:
-                        del st.session_state[k]
-                st.rerun()
-    # ########################################
-
     # メイン設定エリア
     with st.expander("⚙️ 施策実行・追加採用 (ここをタップ)", expanded=True):
         tab1, tab2 = st.tabs(["🃏 ① 施策実行", "👥 ② 追加採用"])
@@ -401,8 +388,30 @@ else:
                 else:
                     st.error("🚫 条件を満たす残りの人材がいません")
 
-    # ★最終的なメンバーリスト = 初期メンバー + 追加採用メンバー
-    active_chars = init_members + selected_recruits
+    # ### 追加・変更エリア：離脱管理UI ###
+    # まず全候補者をリスト化 (初期 + 追加採用)
+    all_current_members = init_members + selected_recruits
+    all_member_names = [m["name"] for m in all_current_members]
+    
+    with st.expander("👋 メンバー離脱・解雇 (ここをタップ)", expanded=False):
+        st.caption("👇 ゲーム途中で離脱したメンバーを選択してください（初期メンバーも選択可能です）")
+        
+        # 既に離脱リストにあるものも含めて表示しないと、選択解除（復帰）ができないため、全メンバーをOptionにする
+        retired_selection = st.multiselect(
+            "離脱したメンバーを選択してください（ここに選ばれた人は計算から除外されます）",
+            options=all_member_names,
+            default=[n for n in st.session_state.retired_names if n in all_member_names],
+            key="multiselect_retired"
+        )
+        
+        # 状態更新
+        if retired_selection != st.session_state.retired_names:
+            st.session_state.retired_names = retired_selection
+            st.rerun()
+            
+    # ★最終的なメンバーリスト = (初期 + 追加) - 離脱者
+    active_chars = [m for m in all_current_members if m["name"] not in st.session_state.retired_names]
+    # #####################################
 
 
 # ==========================================
@@ -470,7 +479,7 @@ if st.session_state.is_startup_completed:
             <div class="score-value">{shield_disp}</div>
         </div>
         <div class="score-item">
-            <div class="score-label">🔵 採用対象</div>
+            <div class="score-label">🔵 採用強化</div>
             <div class="score-value">{recruit_disp}</div>
         </div>
         <div class="score-item">
