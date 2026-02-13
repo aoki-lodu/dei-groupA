@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 
 # ==========================================
 # 0. 設定 & データ定義
@@ -257,7 +258,7 @@ if "selected_char_rows" not in st.session_state:
 if "selected_policy_rows" not in st.session_state:
     st.session_state.selected_policy_rows = []
 
-# ### 追加・変更: アクティブメンバーのインデックス管理 ###
+# アクティブメンバーのインデックス管理
 # 参加中のメンバーのインデックス(sorted_chars内)を保持する
 if "active_member_indices" not in st.session_state:
     st.session_state.active_member_indices = []
@@ -292,7 +293,6 @@ if not st.session_state.is_startup_completed:
     # 2名選択されたらボタンを押せるようにする
     if len(temp_init_members) == 2:
         if st.button("🚀 この2名でスタート！", use_container_width=True, type="primary"):
-            # ### 追加・変更 ###
             # 初期メンバーのインデックスを保存し、次のフェーズでデフォルト選択状態にする
             st.session_state.active_member_indices = init_indices
             st.session_state.is_startup_completed = True
@@ -343,69 +343,77 @@ else:
             else:
                 st.warning("⚠️ 「採用」施策を選ぶと、追加メンバーが選べるようになります")
 
-        # --- ② メンバー管理（一元化） ---
+        # --- ② メンバー管理（安定版：data_editor使用） ---
         with tab2:
-            st.caption("👇 **チェック＝参加中** です。チェックを外すと離脱、入れると採用（要条件）となります。")
+            st.caption("👇 **チェックを入れると参加、外すと離脱します**")
             
+            # 全メンバーのデータを準備
             df_chars_manage = pd.DataFrame(sorted_chars)
-            df_chars_manage["選択用リスト"] = df_chars_manage.apply(lambda x: f"{''.join(x['icons'])} {x['name']}", axis=1)
             
-            # ### 追加・変更 ###
-            # Streamlitのdataframeはon_selectで状態が変わるが、初期値を渡すには少し工夫が必要。
-            # st.session_state["key"]["selection"]["rows"] を直接操作して、前回の状態を維持・反映させる。
+            # 現在参加中のメンバーには「参加」列に True (チェック) をつける
+            # active_member_indices に含まれるインデックスは True, それ以外は False
+            current_status = []
+            for i in range(len(df_chars_manage)):
+                current_status.append(i in st.session_state.active_member_indices)
             
-            # まだキーが作成されていない場合（初回遷移時）、初期メンバーをセット
-            if "df_manage_selection" not in st.session_state:
-                 st.session_state["df_manage_selection"] = {"selection": {"rows": st.session_state.active_member_indices}}
+            df_chars_manage.insert(0, "参加", current_status) # 1列目にチェックボックス列を追加
+            df_chars_manage["名前と属性"] = df_chars_manage.apply(lambda x: f"{''.join(x['icons'])} {x['name']}", axis=1)
             
-            # データフレーム表示（全メンバーを表示）
-            selection_event_manage = st.dataframe(
-                df_chars_manage[["選択用リスト"]], 
-                use_container_width=True,
+            # データエディタ表示 (チェックボックスでON/OFFできる表)
+            edited_df = st.data_editor(
+                df_chars_manage[["参加", "名前と属性"]],
+                column_config={
+                    "参加": st.column_config.CheckboxColumn(
+                        "参加状況",
+                        help="チェックを入れるとメンバーに参加します",
+                        default=False,
+                    ),
+                    "名前と属性": st.column_config.TextColumn(
+                        "メンバー",
+                        disabled=True # 名前は編集不可にする
+                    )
+                },
+                disabled=["名前と属性"], # 名前列は編集禁止
                 hide_index=True,
-                on_select="rerun",
-                selection_mode="multi-row",
-                height=400, # 少し高さを確保
-                key="df_manage_selection" 
+                use_container_width=True,
+                height=400,
+                key="editor_member_manage"
             )
             
-            # ユーザーが選択した新しいインデックス一覧
-            new_selection_indices = selection_event_manage.selection.rows
+            # --- 変更の検知とバリデーション ---
+            # 編集後のデータから「参加」がTrueになっている人のインデックスを取得
+            # (元のデータフレームのインデックスと対応しています)
+            new_active_indices = [i for i, x in enumerate(edited_df["参加"]) if x]
             
-            # 差分検知（誰が増えて、誰が減ったか？）
-            old_indices_set = set(st.session_state.active_member_indices)
-            new_indices_set = set(new_selection_indices)
+            # 差分チェック
+            old_set = set(st.session_state.active_member_indices)
+            new_set = set(new_active_indices)
             
-            added_indices = list(new_indices_set - old_indices_set)     # 新しくチェックされた人
-            removed_indices = list(old_indices_set - new_indices_set)   # チェックが外された人
+            added_indices = list(new_set - old_set) # 新しく増えた人
             
-            # ★バリデーション: 新しく追加された人が「採用条件」を満たしているか？
-            valid_addition = True
+            # バリデーション: 新規追加が許可されているか？
+            valid_change = True
             for idx in added_indices:
                 char = sorted_chars[idx]
                 char_icons_set = set(char["icons"])
+                
+                # 採用条件（施策）を満たしていない場合
                 if not char_icons_set.issubset(recruit_enabled_icons):
-                    # 条件を満たしていない場合
-                    valid_addition = False
+                    valid_change = False
                     msg = f"「{char['name']}」を採用するには、対応する属性の採用施策が必要です"
                     st.toast(f"🚫 {msg}", icon="⚠️")
-                    
-                    # 強制的にチェックを外す（session_stateを書き換えてrerun）
-                    # 追加分を取り消す
-                    new_indices_set.remove(idx)
             
-            if not valid_addition:
-                # 無効な選択があった場合、stateを修正してリロード
-                st.session_state["df_manage_selection"]["selection"]["rows"] = list(new_indices_set)
-                st.rerun()
-            
-            # 有効な変更のみ反映
-            if added_indices or removed_indices:
-                st.session_state.active_member_indices = list(new_indices_set)
-                # 即リランせずとも変数更新で描画は進むが、念のため
-                # (ここでは代入だけしておき、下のactive_chars生成で使う)
+            # 変更が有効であれば反映、無効ならリロードして元に戻す
+            if set(new_active_indices) != set(st.session_state.active_member_indices):
+                if valid_change:
+                    st.session_state.active_member_indices = new_active_indices
+                    st.rerun() # 即時反映
+                else:
+                    # 無効な操作（条件を満たさない人をチェックした）場合
+                    # session_stateを更新せずにrerunすることで、チェックボックスを元の状態(False)に戻す
+                    time.sleep(1) # トーストを読ませるため少し待つ（任意）
+                    st.rerun()
 
-            # 現在の参加メンバー数表示
             st.caption(f"現在 {len(st.session_state.active_member_indices)} 名が参加中")
 
     # ★最終的なメンバーリスト生成
