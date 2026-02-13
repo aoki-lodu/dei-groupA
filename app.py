@@ -305,6 +305,23 @@ else:
     # 確定済みの初期メンバー
     init_members = st.session_state.initial_members
     
+    # ### 追加・変更エリア：リセットボタンの実装 ###
+    # メイン画面上部に「やり直しボタン」を配置
+    with st.container():
+        col_reset, col_dummy = st.columns([1, 2])
+        with col_reset:
+            if st.button("🔄 初期メンバーを選び直す", key="reset_btn", help="最初の2名の選択画面に戻ります"):
+                # セッションステートをリセットして再起動
+                st.session_state.is_startup_completed = False
+                st.session_state.initial_members = []
+                # データフレームの選択状態もクリア（キーが存在する場合のみ）
+                keys_to_clear = ["df_init_selection", "df_pols_selection", "df_recruits_selection"]
+                for k in keys_to_clear:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                st.rerun()
+    # ########################################
+
     # メイン設定エリア
     with st.expander("⚙️ 施策実行・追加採用 (ここをタップ)", expanded=True):
         tab1, tab2 = st.tabs(["🃏 ① 施策実行", "👥 ② 追加採用"])
@@ -347,7 +364,6 @@ else:
             st.caption("👇 採用条件を満たしたメンバーのみ表示されます")
             
             # 初期メンバーに含まれていない人だけをフィルタリング対象にする
-            # (名前の一致で判定)
             init_names = [m["name"] for m in init_members]
             remaining_chars = [c for c in sorted_chars if c["name"] not in init_names]
 
@@ -454,7 +470,7 @@ if st.session_state.is_startup_completed:
             <div class="score-value">{shield_disp}</div>
         </div>
         <div class="score-item">
-            <div class="score-label">🔵 採用強化</div>
+            <div class="score-label">🔵 採用対象</div>
             <div class="score-value">{recruit_disp}</div>
         </div>
         <div class="score-item">
