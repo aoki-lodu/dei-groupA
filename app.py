@@ -251,17 +251,16 @@ st.title("🎲 DE&I 組織シミュレーター")
 # セッション状態の初期化
 if "is_startup_completed" not in st.session_state:
     st.session_state.is_startup_completed = False # 初期フェーズ完了フラグ
-if "initial_members" not in st.session_state:
-    st.session_state.initial_members = [] # 最初に選んだ2名
-
-# ### 追加・変更: 離脱者リスト ###
-if "retired_names" not in st.session_state:
-    st.session_state.retired_names = [] 
-
+    
 if "selected_char_rows" not in st.session_state:
     st.session_state.selected_char_rows = []
 if "selected_policy_rows" not in st.session_state:
     st.session_state.selected_policy_rows = []
+
+# ### 追加・変更: アクティブメンバーのインデックス管理 ###
+# 参加中のメンバーのインデックス(sorted_chars内)を保持する
+if "active_member_indices" not in st.session_state:
+    st.session_state.active_member_indices = []
 
 # ==========================================
 # 2. フェーズ分岐処理
@@ -293,7 +292,9 @@ if not st.session_state.is_startup_completed:
     # 2名選択されたらボタンを押せるようにする
     if len(temp_init_members) == 2:
         if st.button("🚀 この2名でスタート！", use_container_width=True, type="primary"):
-            st.session_state.initial_members = temp_init_members
+            # ### 追加・変更 ###
+            # 初期メンバーのインデックスを保存し、次のフェーズでデフォルト選択状態にする
+            st.session_state.active_member_indices = init_indices
             st.session_state.is_startup_completed = True
             st.rerun()
     elif len(temp_init_members) > 2:
@@ -301,17 +302,14 @@ if not st.session_state.is_startup_completed:
     else:
         st.caption(f"あと {2 - len(temp_init_members)} 名選んでください")
 
-    # フェーズAではここで処理を止めて画面を表示
-    active_chars = [] # まだ計算しない
+    active_chars = [] 
 
 # --- フェーズB: メインゲーム (施策 & 追加採用) ---
 else:
-    # 確定済みの初期メンバー
-    init_members = st.session_state.initial_members
-    
+    # ### 追加・変更 ###
     # メイン設定エリア
     with st.expander("⚙️ 施策実行・追加採用 (ここをタップ)", expanded=True):
-        tab1, tab2 = st.tabs(["🃏 ① 施策実行", "👥 ② 追加採用"])
+        tab1, tab2 = st.tabs(["🃏 ① 施策実行", "👥 ② メンバー管理（採用・離脱）"])
 
         # --- ① 施策選択 ---
         with tab1:
@@ -346,72 +344,73 @@ else:
             else:
                 st.warning("⚠️ 「採用」施策を選ぶと、追加メンバーが選べるようになります")
 
-        # --- ② 追加採用 (フィルタリングあり) ---
+        # --- ② メンバー管理（一元化） ---
         with tab2:
-            st.caption("👇 採用条件を満たしたメンバーのみ表示されます")
+            st.caption("👇 **チェック＝参加中** です。チェックを外すと離脱、入れると採用（要条件）となります。")
             
-            # 初期メンバーに含まれていない人だけをフィルタリング対象にする
-            init_names = [m["name"] for m in init_members]
-            remaining_chars = [c for c in sorted_chars if c["name"] not in init_names]
-
-            # 属性フィルタリング
-            recruitable_chars = []
-            for char in remaining_chars:
+            df_chars_manage = pd.DataFrame(sorted_chars)
+            df_chars_manage["選択用リスト"] = df_chars_manage.apply(lambda x: f"{''.join(x['icons'])} {x['name']}", axis=1)
+            
+            # ### 追加・変更 ###
+            # Streamlitのdataframeはon_selectで状態が変わるが、初期値を渡すには少し工夫が必要。
+            # st.session_state["key"]["selection"]["rows"] を直接操作して、前回の状態を維持・反映させる。
+            
+            # まだキーが作成されていない場合（初回遷移時）、初期メンバーをセット
+            if "df_manage_selection" not in st.session_state:
+                 st.session_state["df_manage_selection"] = {"selection": {"rows": st.session_state.active_member_indices}}
+            
+            # データフレーム表示（全メンバーを表示）
+            selection_event_manage = st.dataframe(
+                df_chars_manage[["選択用リスト"]], 
+                use_container_width=True,
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="multi-row",
+                height=400, # 少し高さを確保
+                key="df_manage_selection" 
+            )
+            
+            # ユーザーが選択した新しいインデックス一覧
+            new_selection_indices = selection_event_manage.selection.rows
+            
+            # 差分検知（誰が増えて、誰が減ったか？）
+            old_indices_set = set(st.session_state.active_member_indices)
+            new_indices_set = set(new_selection_indices)
+            
+            added_indices = list(new_indices_set - old_indices_set)     # 新しくチェックされた人
+            removed_indices = list(old_indices_set - new_indices_set)   # チェックが外された人
+            
+            # ★バリデーション: 新しく追加された人が「採用条件」を満たしているか？
+            valid_addition = True
+            for idx in added_indices:
+                char = sorted_chars[idx]
                 char_icons_set = set(char["icons"])
-                # 部分集合かどうか判定
-                if char_icons_set.issubset(recruit_enabled_icons):
-                    recruitable_chars.append(char)
+                if not char_icons_set.issubset(recruit_enabled_icons):
+                    # 条件を満たしていない場合
+                    valid_addition = False
+                    msg = f"「{char['name']}」を採用するには、対応する属性の採用施策が必要です"
+                    st.toast(f"🚫 {msg}", icon="⚠️")
+                    
+                    # 強制的にチェックを外す（session_stateを書き換えてrerun）
+                    # 追加分を取り消す
+                    new_indices_set.remove(idx)
             
-            selected_recruits = []
-            if recruitable_chars:
-                df_chars_recruit = pd.DataFrame(recruitable_chars)
-                df_chars_recruit["選択用リスト"] = df_chars_recruit.apply(lambda x: f"{''.join(x['icons'])} {x['name']}", axis=1)
-                
-                selection_event_recruits = st.dataframe(
-                    df_chars_recruit[["選択用リスト"]], 
-                    use_container_width=True,
-                    hide_index=True,
-                    on_select="rerun",
-                    selection_mode="multi-row",
-                    height=300,
-                    key="df_recruits_selection" 
-                )
-                
-                recruit_indices = selection_event_recruits.selection.rows
-                selected_recruits = [recruitable_chars[i] for i in recruit_indices]
-                
-                if len(selected_recruits) > 0:
-                    st.caption(f"現在 {len(selected_recruits)} 名を追加選択中")
-            else:
-                if not recruit_enabled_icons:
-                    st.error("🚫 採用施策が選ばれていないため、追加できません")
-                else:
-                    st.error("🚫 条件を満たす残りの人材がいません")
+            if not valid_addition:
+                # 無効な選択があった場合、stateを修正してリロード
+                st.session_state["df_manage_selection"]["selection"]["rows"] = list(new_indices_set)
+                st.rerun()
+            
+            # 有効な変更のみ反映
+            if added_indices or removed_indices:
+                st.session_state.active_member_indices = list(new_indices_set)
+                # 即リランせずとも変数更新で描画は進むが、念のため
+                # (ここでは代入だけしておき、下のactive_chars生成で使う)
 
-    # ### 追加・変更エリア：離脱管理UI ###
-    # まず全候補者をリスト化 (初期 + 追加採用)
-    all_current_members = init_members + selected_recruits
-    all_member_names = [m["name"] for m in all_current_members]
-    
-    with st.expander("👋 メンバー離脱・解雇 (ここをタップ)", expanded=False):
-        st.caption("👇 ゲーム途中で離脱したメンバーを選択してください（初期メンバーも選択可能です）")
-        
-        # 既に離脱リストにあるものも含めて表示しないと、選択解除（復帰）ができないため、全メンバーをOptionにする
-        retired_selection = st.multiselect(
-            "離脱したメンバーを選択してください（ここに選ばれた人は計算から除外されます）",
-            options=all_member_names,
-            default=[n for n in st.session_state.retired_names if n in all_member_names],
-            key="multiselect_retired"
-        )
-        
-        # 状態更新
-        if retired_selection != st.session_state.retired_names:
-            st.session_state.retired_names = retired_selection
-            st.rerun()
-            
-    # ★最終的なメンバーリスト = (初期 + 追加) - 離脱者
-    active_chars = [m for m in all_current_members if m["name"] not in st.session_state.retired_names]
-    # #####################################
+            # 現在の参加メンバー数表示
+            st.caption(f"現在 {len(st.session_state.active_member_indices)} 名が参加中")
+
+    # ★最終的なメンバーリスト生成
+    active_chars = [sorted_chars[i] for i in st.session_state.active_member_indices]
 
 
 # ==========================================
@@ -479,7 +478,7 @@ if st.session_state.is_startup_completed:
             <div class="score-value">{shield_disp}</div>
         </div>
         <div class="score-item">
-            <div class="score-label">🔵 採用強化</div>
+            <div class="score-label">🔵 採用対象</div>
             <div class="score-value">{recruit_disp}</div>
         </div>
         <div class="score-item">
